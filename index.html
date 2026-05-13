@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Amazon: from forest to farmland</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Source+Sans+3:wght@300;400;600&display=swap" rel="stylesheet"/>
+
+  <style>
+    :root {
+      --green-deep:  #0f1f0f;
+      --green-mid:   #2d6a2d;
+      --green-light: #4caf50;
+      --amber:       #e8a020;
+      --red:         #c0392b;
+      --cream:       #f5f0e8;
+      --panel-bg:    rgba(12, 25, 12, 0.95);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Source Sans 3', sans-serif;
+      background: var(--green-deep);
+      color: var(--cream);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      overflow-y: auto;
+    }
+
+    header {
+      padding: 10px 20px;
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      flex-shrink: 0;
+    }
+    header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.5rem;
+      font-weight: 900;
+    }
+    header h1 em { color: var(--green-light); font-style: normal; }
+    header p { font-size: 0.75rem; color: rgba(245,240,232,0.45); }
+
+    .body { display: flex; flex: none; height: calc(100vh - 43px); min-height: 500px; }
+
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: var(--panel-bg);
+      border-right: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+    .section {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .section-title {
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--green-light);
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+
+    .layer-btn {
+      width: 100%;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--cream);
+      padding: 8px 11px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-family: 'Source Sans 3', sans-serif;
+      font-size: 0.8rem;
+      text-align: left;
+      margin-bottom: 5px;
+      transition: all 0.18s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .layer-btn:hover { background: rgba(76,175,80,0.18); border-color: var(--green-light); }
+    .layer-btn.active { background: rgba(76,175,80,0.22); border-color: var(--green-light); }
+    .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+    #year-big {
+      font-family: 'Playfair Display', serif;
+      font-size: 3rem;
+      font-weight: 900;
+      color: var(--amber);
+      text-align: center;
+      line-height: 1;
+      margin-bottom: 2px;
+    }
+    #year-sub {
+      text-align: center;
+      font-size: 0.65rem;
+      color: rgba(245,240,232,0.35);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    #year-slider {
+      width: 100%;
+      -webkit-appearance: none;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255,255,255,0.12);
+      outline: none;
+      cursor: pointer;
+    }
+    #year-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 15px; height: 15px;
+      border-radius: 50%;
+      background: var(--amber);
+      cursor: pointer;
+    }
+    .year-ends {
+      display: flex; justify-content: space-between;
+      font-size: 0.65rem; color: rgba(245,240,232,0.3);
+      margin: 3px 0 10px;
+    }
+    #play-btn {
+      width: 100%;
+      padding: 8px;
+      background: var(--green-mid);
+      border: none; border-radius: 5px;
+      color: #fff;
+      font-family: 'Source Sans 3', sans-serif;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #play-btn:hover { background: var(--green-light); }
+
+    .leg-item { display: flex; align-items: center; gap: 8px; font-size: 0.76rem; color: rgba(245,240,232,0.65); margin-bottom: 5px; }
+    .leg-swatch { width: 13px; height: 13px; border-radius: 3px; flex-shrink: 0; }
+
+    .fact {
+      background: rgba(192,57,43,0.13);
+      border: 1px solid rgba(192,57,43,0.3);
+      border-radius: 5px;
+      padding: 9px 11px;
+      font-size: 0.76rem;
+      line-height: 1.55;
+      color: rgba(245,240,232,0.75);
+    }
+    .fact strong { color: #e87060; }
+
+    .map-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    #map { flex: 1; position: relative; }
+
+    #tile-status {
+      position: absolute;
+      top: 10px; right: 10px;
+      background: var(--panel-bg);
+      border: 1px solid rgba(76,175,80,0.35);
+      border-radius: 5px;
+      padding: 5px 10px;
+      font-size: 0.72rem;
+      color: var(--amber);
+      z-index: 900;
+      pointer-events: none;
+    }
+
+    #tip {
+      position: absolute;
+      background: rgba(12,25,12,0.95);
+      border: 1px solid rgba(76,175,80,0.35);
+      border-radius: 5px;
+      padding: 7px 11px;
+      font-size: 0.76rem;
+      line-height: 1.6;
+      pointer-events: none;
+      display: none;
+      z-index: 1000;
+    }
+    #tip b { color: var(--amber); }
+
+    .chart-strip {
+      height: 108px;
+      flex-shrink: 0;
+      background: var(--panel-bg);
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding: 8px 16px 4px;
+    }
+    .chart-title {
+      font-size: 0.63rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(245,240,232,0.35);
+      margin-bottom: 3px;
+    }
+    #chart { width: 100%; display: block; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Amazon: <em>from forest to farmland</em></h1>
+</header>
+
+<div class="body">
+  <div class="sidebar">
+
+    <div class="section">
+      <div class="section-title">Satellite Layer</div>
+      <button class="layer-btn active"
+        data-layer="MODIS_Terra_CorrectedReflectance_TrueColor"
+        data-tileset="GoogleMapsCompatible_Level9"
+        data-fmt="jpg" data-maxzoom="9">
+        <span class="dot" style="background:#4caf50"></span>True Color
+      </button>
+      <button class="layer-btn"
+        data-layer="MODIS_Terra_Land_Surface_Temp_Day"
+        data-tileset="GoogleMapsCompatible_Level7"
+        data-fmt="png" data-maxzoom="7">
+        <span class="dot" style="background:#e8a020"></span>Land Temperature
+      </button>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Year</div>
+      <div id="year-big">2002</div>
+      <div id="year-sub">Viewing</div>
+      <input type="range" id="year-slider" min="2002" max="2024" value="2002" step="1"/>
+      <div class="year-ends"><span>2002</span><span>2024</span></div>
+      <button id="play-btn">▶ &nbsp;Play Timeline</button>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Legend</div>
+      <div id="legend">
+        <div class="leg-item"><div class="leg-swatch" style="background:#1a6b1a"></div>Dense forest</div>
+        <div class="leg-item"><div class="leg-swatch" style="background:#a8d08d"></div>Degraded / regrowth</div>
+        <div class="leg-item"><div class="leg-swatch" style="background:#c8a96e"></div>Cleared farmland</div>
+        <div class="leg-item"><div class="leg-swatch" style="background:#4a7fb5"></div>Water / rivers</div>
+      </div>
+    </div>
+
+  </div><!-- end sidebar -->
+
+  <div class="map-col">
+    <div id="map">
+      <div id="tile-status">Loading tiles…</div>
+      <div id="tip"></div>
+    </div>
+    <div class="chart-strip">
+      <div class="chart-title">Annual deforestation — Brazilian Amazon (INPE estimates, thousand km²)</div>
+      <svg id="chart"></svg>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+const DATA = [
+  {y:2002,km2:21651},{y:2003,km2:25396},{y:2004,km2:27772},
+  {y:2005,km2:19014},{y:2006,km2:14286},{y:2007,km2:11651},{y:2008,km2:12911},
+  {y:2009,km2:7464}, {y:2010,km2:7000}, {y:2011,km2:6418}, {y:2012,km2:4571},
+  {y:2013,km2:5843}, {y:2014,km2:5012}, {y:2015,km2:6207}, {y:2016,km2:7893},
+  {y:2017,km2:6947}, {y:2018,km2:7536}, {y:2019,km2:10129},{y:2020,km2:10851},
+  {y:2021,km2:13235},{y:2022,km2:11568},{y:2023,km2:9001}, {y:2024,km2:7200}
+];
+
+const state = {
+  year: 2002,
+  layer: 'MODIS_Terra_CorrectedReflectance_TrueColor',
+  tileset: 'GoogleMapsCompatible_Level9',
+  fmt: 'jpg',
+  maxzoom: 9
+};
+
+const map = L.map('map', { center: [-5, -60], zoom: 5, maxZoom: 9, minZoom: 3 });
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+  attribution: '© CartoDB © OpenStreetMap', subdomains: 'abcd'
+}).addTo(map);
+
+const labelLayer = L.tileLayer(
+  'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png',
+  { subdomains: 'abcd', zIndex: 500 }
+).addTo(map);
+
+let gibsLayer = null;
+const statusEl = document.getElementById('tile-status');
+
+function updateMap() {
+  statusEl.textContent = 'Loading…';
+  statusEl.style.color = 'var(--amber)';
+  if (gibsLayer) { map.removeLayer(gibsLayer); gibsLayer = null; }
+
+  const url = `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${state.layer}/default/${state.year}-07-01/${state.tileset}/{z}/{y}/{x}.${state.fmt}`;
+
+  gibsLayer = L.tileLayer(url, {
+    opacity: 0.92,
+    maxZoom: state.maxzoom,
+    attribution: 'Imagery: NASA GIBS / MODIS'
+  });
+
+  let firstLoad = true;
+  gibsLayer.on('tileload', () => {
+    if (firstLoad) {
+      firstLoad = false;
+      statusEl.textContent = `${state.year} · NASA MODIS`;
+      statusEl.style.color = 'var(--green-light)';
+    }
+  });
+  gibsLayer.on('tileerror', () => {
+    statusEl.textContent = `${state.year} · some tiles missing`;
+    statusEl.style.color = 'rgba(245,240,232,0.4)';
+  });
+
+  gibsLayer.addTo(map);
+  labelLayer.bringToFront();
+}
+
+const slider  = document.getElementById('year-slider');
+const yearBig = document.getElementById('year-big');
+
+slider.addEventListener('input', function() {
+  state.year = +this.value;
+  yearBig.textContent = state.year;
+  updateMap();
+  highlightBar(state.year);
+});
+
+document.querySelectorAll('.layer-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    state.layer   = this.dataset.layer;
+    state.tileset = this.dataset.tileset;
+    state.fmt     = this.dataset.fmt;
+    state.maxzoom = +this.dataset.maxzoom;
+    updateLegend(state.layer);
+    updateMap();
+  });
+});
+
+function updateLegend(layer) {
+  const el = document.getElementById('legend');
+  if (layer.includes('Temp')) {
+    el.innerHTML = `
+      <div class="leg-item"><div class="leg-swatch" style="background:#2166ac"></div>Cool (&lt; 20°C)</div>
+      <div class="leg-item"><div class="leg-swatch" style="background:#fdae61"></div>Warm (30–40°C)</div>
+      <div class="leg-item"><div class="leg-swatch" style="background:#d73027"></div>Hot (&gt; 45°C)</div>
+      <div class="leg-item"><div class="leg-swatch" style="background:#555"></div>Cloud / no data</div>`;
+  } else {
+    el.innerHTML = `
+      <div class="leg-item"><div class="leg-swatch" style="background:#1a6b1a"></div>Dense forest</div>
+      <div class="leg-item"><div class="leg-swatch" style="background:#a8d08d"></div>Degraded / regrowth</div>
+      <div class="leg-item"><div class="leg-swatch" style="background:#c8a96e"></div>Cleared farmland</div>
+      <div class="leg-item"><div class="leg-swatch" style="background:#4a7fb5"></div>Water / rivers</div>`;
+  }
+}
+
+let playing = false, timer = null;
+const playBtn = document.getElementById('play-btn');
+playBtn.addEventListener('click', () => {
+  if (playing) {
+    clearInterval(timer); playing = false;
+    playBtn.textContent = '▶  Play Timeline';
+  } else {
+    if (state.year >= 2024) { state.year = 2002; slider.value = 2002; yearBig.textContent = 2002; }
+    playing = true; playBtn.textContent = '⏹  Stop';
+    timer = setInterval(() => {
+      if (state.year >= 2024) { clearInterval(timer); playing = false; playBtn.textContent = '▶  Play Timeline'; return; }
+      state.year++;
+      slider.value = state.year;
+      yearBig.textContent = state.year;
+      updateMap(); highlightBar(state.year);
+    }, 1400);
+  }
+});
+
+const tip   = document.getElementById('tip');
+const mapEl = document.getElementById('map');
+map.on('mousemove', e => {
+  const d = DATA.find(d => d.y === state.year);
+  const r = mapEl.getBoundingClientRect();
+  tip.style.display = 'block';
+  tip.style.left = (e.originalEvent.clientX - r.left + 14) + 'px';
+  tip.style.top  = (e.originalEvent.clientY - r.top  - 14) + 'px';
+  tip.innerHTML  = `<b>${state.year}</b><br>
+    ${e.latlng.lat.toFixed(2)}°, ${e.latlng.lng.toFixed(2)}°<br>
+    Deforestation: <b style="color:var(--red)">${d ? d.km2.toLocaleString() + ' km²' : '—'}</b>`;
+});
+map.on('mouseout', () => tip.style.display = 'none');
+
+function drawChart() {
+  const svg = d3.select('#chart');
+  const W = document.querySelector('.chart-strip').clientWidth - 32;
+  const H = 80;
+  svg.attr('width', W).attr('height', H).selectAll('*').remove();
+
+  const m = {top:4, right:8, bottom:16, left:34};
+  const w = W - m.left - m.right, h = H - m.top - m.bottom;
+  const g = svg.append('g').attr('transform', `translate(${m.left},${m.top})`);
+
+  const x = d3.scaleBand().domain(DATA.map(d=>d.y)).range([0,w]).padding(0.12);
+  const y = d3.scaleLinear().domain([0,30000]).range([h,0]);
+
+  g.append('g')
+    .call(d3.axisLeft(y).ticks(3).tickSize(-w).tickFormat(''))
+    .call(g=>g.select('.domain').remove())
+    .call(g=>g.selectAll('line').attr('stroke','rgba(255,255,255,0.05)'));
+
+  g.selectAll('.bar').data(DATA).join('rect')
+    .attr('class','bar')
+    .attr('x',d=>x(d.y)).attr('y',d=>y(d.km2))
+    .attr('width',x.bandwidth()).attr('height',d=>h-y(d.km2))
+    .attr('rx',1)
+    .attr('fill',d=>d.km2>20000?'#c0392b':d.km2>12000?'#e8a020':'#4caf50')
+    .style('cursor','pointer')
+    .on('click',(_,d)=>{ state.year=d.y; slider.value=d.y; yearBig.textContent=d.y; updateMap(); highlightBar(d.y); })
+    .on('mouseover',function(event,d){
+      d3.select(this).attr('opacity',0.7);
+      const r=mapEl.getBoundingClientRect();
+      tip.style.display='block';
+      tip.style.left=(event.clientX-r.left+10)+'px';
+      tip.style.top='20px';
+      tip.innerHTML=`<b>${d.y}</b><br>Deforestation: <b style="color:var(--red)">${d.km2.toLocaleString()} km²</b>`;
+    })
+    .on('mouseout',function(){ d3.select(this).attr('opacity',1); tip.style.display='none'; });
+
+  g.append('g').attr('transform',`translate(0,${h})`)
+    .call(d3.axisBottom(x).tickValues(DATA.filter((_,i)=>i%3===0).map(d=>d.y)).tickSize(0))
+    .call(g=>g.select('.domain').attr('stroke','rgba(255,255,255,0.1)'))
+    .call(g=>g.selectAll('text').attr('fill','rgba(245,240,232,0.35)').style('font-size','0.6rem'));
+
+  g.append('g')
+    .call(d3.axisLeft(y).ticks(3).tickFormat(d=>(d/1000)+'k'))
+    .call(g=>g.select('.domain').remove())
+    .call(g=>g.selectAll('text').attr('fill','rgba(245,240,232,0.35)').style('font-size','0.6rem'));
+
+  highlightBar(state.year);
+}
+
+function highlightBar(year) {
+  d3.selectAll('.bar')
+    .attr('stroke', d=>d.y===year?'#fff':'none')
+    .attr('stroke-width', 2);
+}
+
+updateMap();
+drawChart();
+window.addEventListener('resize', drawChart);
+</script>
+
+<style>
+  #writeup {
+    background: var(--green-deep);
+    border-top: 2px solid rgba(76,175,80,0.18);
+    padding: 56px 0 72px;
+  }
+  .wu-inner {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 28px;
+  }
+  #writeup h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.55rem;
+    font-weight: 900;
+    color: var(--cream);
+    margin-top: 48px;
+    margin-bottom: 18px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(76,175,80,0.2);
+  }
+  #writeup h2:first-child { margin-top: 0; }
+  #writeup h3 {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--green-light);
+    margin: 28px 0 8px;
+  }
+  #writeup p {
+    font-size: 0.93rem;
+    line-height: 1.8;
+    color: rgba(245,240,232,0.72);
+  }
+  #writeup hr {
+    border: none;
+    border-top: 1px solid rgba(255,255,255,0.07);
+    margin: 48px 0;
+  }
+</style>
+
+<div id="writeup">
+  <div class="wu-inner">
+
+    <h2>Design Rationale</h2>
+
+    <h3>Why the dataset and question</h3>
+    <p>
+      We chose the amazon because although amazon is a household name very few people tend to think of the forest. Over the years it has grown smaller and smaller due to deforestation and left a last impact. This has seemingly because temperatures to raise as you can see from the data that may lead to more fires along with broken ecosystems due to the deforestation. If nothing else seeing this change happen in front of your own eyes will hopefully help other understand the amazon is more than just 2 day shipping.
+    </p>
+
+    <h3>Visual encoding</h3>
+    <p>
+      Satellite map is used just to show an actual picture however the land temp is what brings up the concern. In all honesty the average person may see the satellite map and think nothing of it but watching the change in temperatures when they are color coded for easy understanding helps get the point that there is an impact to deforestation much easier.
+    </p>
+
+    <h3>Interaction design</h3>
+    <p>
+      The slider is simple but effective as it gives the user to see the changes as they progress. This provides a heavier impact than a static frame or two. The toggle between the two visualizations helps connect the two in a deeper sense.
+    </p>
+
+    <h3>Alternatives</h3>
+    <p>
+      We did consider a side by side view but thought it would not be as impactful. Also initially wanted to do vegetation change but thought the heat map would be harder to hand wave. If there is less vegetation due to deforestation that's a bit of the point.
+    </p>
+
+    <hr/>
+
+    <h2>Development Process</h2>
+
+    <h3>Team breakdown</h3>
+    <p>
+      All three of use initially brainstormed ideas but all were in agreement that the NASA dataset was the way to go. We then had a couple meetings going over the potential topics to cover before landing on the amazon with the following meeting narrowing down idea. This last weekend Joey made skeleton, Scarlett determined and implemented the data we needed, and Robert put it together and we all went over the finishing touches in terms of visuals using the internet as a guide us for some of stuff we broke along the way.
+    </p>
+
+    <h3>Time spent</h3>
+    <p>
+      If we include time spent discussing this total project took between 9-12 hrs, around a week or so. With the most time consuming being the planning stages and getting the GIBS tiles.
+    </p>
+
+  </div>
+</div>
+
+</body>
+</html>
